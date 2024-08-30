@@ -3,13 +3,14 @@ import os
 from rdkit import Chem
 from rdkit.Chem import AllChem
 os.path.join("/modules")
-
-from gen_Confs_Main import Conf_Generator
-
+try:
+    from ConfGeneration.gen_Confs_Main import Conf_Generator
+except:
+    from RMSD.conformer_generation.gen_Confs_Main_Old import Conf_Generator
 
 class Conf_Generator_XTB(Conf_Generator):
-    def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb"):
-        super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD)
+    def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb", start_Structure_Filename : str = "inStructure.xyz"):
+        super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD, start_Structure_Filename)
         self.xtb_Path = xtb_Path
         with open("md.inp", "w") as f:
             f.writelines([

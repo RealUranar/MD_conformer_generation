@@ -4,7 +4,7 @@ from itertools import islice
 from typing import List
 from rdkit.Chem import AllChem
 from rdkit import Chem
-from rdkit.Chem.rdDetermineBonds import DetermineBonds
+from rdkit.Chem.rdDetermineBonds import DetermineBonds, DetermineConnectivity
 
 class Conf_Generator():
     def __init__(self,min_Valid_Molecules : int, threshold : float, weighting_Scheme: str = "N100", debug = False, OnlyHeavyAtomsRMSD = False, start_Structure_Filename="inStructure.xyz"):
@@ -52,7 +52,10 @@ class Conf_Generator():
         temp = Chem.Mol(mol1)
         [temp.AddConformer(mol.GetConformer(0), assignId=True) for mol in mol2]
         Chem.rdMolAlign.AlignMolConformers(temp)
-        DetermineBonds(temp)
+        try:
+            DetermineBonds(temp)
+        except:
+            DetermineConnectivity(temp)
         return temp
 
     def calc_RMSD_matrix(self, molecules: List[Chem.Mol]) -> ndarray: 
@@ -168,7 +171,7 @@ class Conf_Generator():
     @staticmethod
     def show_Molecule(mol : Chem.Mol)-> None:
         import matplotlib.pyplot as plt
-        from rdkit.Chem.rdDetermineBonds import DetermineBonds
+        from rdkit.Chem.rdDetermineBonds import DetermineBonds, DetermineConnectivity
         from rdkit.Chem import Draw
         #Copy Molecule to not cahnge the original
         mol_copy = Chem.Mol(mol)
@@ -177,6 +180,8 @@ class Conf_Generator():
         except ValueError:
             print("Wrong charge selected in Determine Bonds!")
             exit()
+        except:
+            DetermineConnectivity(mol_copy)
         AllChem.Compute2DCoords(mol_copy)
         im = Draw.MolToImage(mol_copy)
         fig = plt.figure(figsize=(10,5))
