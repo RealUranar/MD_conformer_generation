@@ -37,9 +37,9 @@ class Conf_Generator_XTB(Conf_Generator):
             Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
             return molecules
         if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --omd --norestart --cma --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
         else:
-            ret = os.system(f"{self.xtb_Path} --md --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --md --norestart --cma --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
         if ret != 0:
             raise RuntimeError("XTB did not run succesfully!")
         
@@ -52,6 +52,9 @@ class Conf_Generator_XTB(Conf_Generator):
         return molecules
     
 class Conf_Generator_XTB_Metadyn(Conf_Generator):
+    
+    SOURCE_FOLDER = "C:\Users\Lisa\Desktop\Conformer_sampling_v4\Conformer"
+    
     def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb", kpush = 0.1, alp = 0.01, start_Structure_Filename : str = "inStructure.xyz"):
         super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD, start_Structure_Filename)
         self.xtb_Path = xtb_Path
@@ -90,9 +93,9 @@ class Conf_Generator_XTB_Metadyn(Conf_Generator):
             Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
             return molecules
         if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --omd --norestart --cma --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
         else:
-            ret = os.system(f"{self.xtb_Path} --metadyn 100 --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --metadyn 100 --norestart --cma --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
         if ret != 0:
             raise RuntimeError("XTB did not run succesfully!")
 
@@ -108,6 +111,27 @@ class Conf_Generator_XTB_Metadyn(Conf_Generator):
         #Rename trajectory file for save keeping because xtb overrides them
         os.rename(f"xtb.trj", f"xtb_{iteration}.trj")
         return molecules
+    
+    def run_in_directories(self):
+        # List all subdirectories in the source folder
+        directories = [os.path.join(self.SOURCE_FOLDER, d) for d in os.listdir(self.SOURCE_FOLDER) if os.path.isdir(os.path.join(self.SOURCE_FOLDER, d))]
+        
+        for directory in directories:
+            try:
+                # Change to the directory
+                os.chdir(directory)
+                print(f"Changed to directory: {directory}")
+
+                # Run the gen_Confs method
+                self.gen_Confs()
+                print(f"Conformers generated successfully in {directory}")
+
+            except Exception as e:
+                print(f"An error occurred in {directory}: {e}")
+
+            finally:
+                # Change back to the original directory
+                os.chdir("..")
 
 class Conf_Generator_rdkit(Conf_Generator):
     def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb"):
