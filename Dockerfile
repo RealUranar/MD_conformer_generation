@@ -1,5 +1,12 @@
 FROM python:3.10-bookworm
 
+#Install Rascaline
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > installRust.sh \
+    && chmod 700 installRust.sh \
+    && ./installRust.sh -y \
+    && source $HOME/.cargo/env \
+    && pip install 'rascaline @ git+https://github.com/Luthaf/rascaline.git'
+
 RUN cd /usr/local \
 	&& wget https://github.com/grimme-lab/xtb/releases/download/v6.7.0/xtb-6.7.0-linux-x86_64.tar.xz \
 	&& tar -xf xtb-6.7.0-linux-x86_64.tar.xz \

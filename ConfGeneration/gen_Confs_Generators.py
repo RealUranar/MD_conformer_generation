@@ -37,9 +37,9 @@ class Conf_Generator_XTB(Conf_Generator):
             Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
             return molecules
         if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --omd --cma --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
         else:
-            ret = os.system(f"{self.xtb_Path} --md --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --md --cma --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
         if ret != 0:
             raise RuntimeError("XTB did not run succesfully!")
         
@@ -90,9 +90,9 @@ class Conf_Generator_XTB_Metadyn(Conf_Generator):
             Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
             return molecules
         if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --omd --cma --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
         else:
-            ret = os.system(f"{self.xtb_Path} --metadyn 100 --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
+            ret = os.system(f"{self.xtb_Path} --metadyn 100 --cma --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
         if ret != 0:
             raise RuntimeError("XTB did not run succesfully!")
 
