@@ -25,6 +25,10 @@ class Conf_Generator_XTB(Conf_Generator):
                 "   shake=0\n",
                 "   sccacc=2.0\n",
                 "   restart=false\n",
+                "$end",
+                "$wall\n",
+                f"   potential=logfermi\n",
+                f"   sphere: auto, all\n",
                 "$end"])
         with open("confs.log", "a") as f:
             f.write(f"Generation Tool: XTB_MD\n")
@@ -75,6 +79,10 @@ class Conf_Generator_XTB_Metadyn(Conf_Generator):
                 f"   kpush={kpush}\n",
                 f"   alp={alp}\n",
                 "    coord=Ref_Structs.xyz\n",
+                "$end",
+                "$wall\n",
+                f"   potential=logfermi\n",
+                f"   sphere: auto, all\n",
                 "$end"
                 ])
         with open("confs.log", "a") as f:
