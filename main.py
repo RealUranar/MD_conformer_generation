@@ -13,20 +13,22 @@ parser.add_argument("-HRMSD", "--heavyRMSD",  type=bool, default=False, help="On
 parser.add_argument("-k", "--kpush",  type=float, default=0.1, help="(Only for Metadynamics) Scaling factor for rmsd criteria")
 parser.add_argument("-a", "--alpha",  type=float, default=0.01, help="(Only for Metadynamics) Width of the gaussian potential used in the rmsd criteria")
 parser.add_argument("-d", "--debug",  type=bool, default=False, help="Debug")
-    
+parser.add_argument("-cpus", "--cpus",  type=int, default=8, help="Number of CPUs to use")
+
 args = parser.parse_args()
 print(args)
 
+os.environ["OMP_NUM_THREADS"] = str(args.cpus)
 if args.program == "MD":
 	#Do Conformer search using XTB
-	confs = Conf_Generator_XTB(min_Valid_Molecules = args.minValidMolecules, threshold = args.threshold, debug = args.debug, weighting_Scheme=args.weighting, OnlyHeavyAtomsRMSD = args.heavyRMSD)
+	confs = Conf_Generator_XTB(min_Valid_Molecules = args.minValidMolecules, threshold = args.threshold, debug = args.debug, weighting_Scheme=args.weighting, OnlyHeavyAtomsRMSD = args.heavyRMSD, start_Structure_Filename = args.input)
 	confs.run()
 	confs.write_XYZ(fileName = "unique.xyz", molecules = confs.unique_Molecules)
 	pass
 
 if args.program == "Metadynamics":
 	#Do Conformer search using XTB and Metadynamik
-	confs = Conf_Generator_XTB_Metadyn(min_Valid_Molecules = args.minValidMolecules, threshold = args.threshold, debug = args.debug, weighting_Scheme=args.weighting, OnlyHeavyAtomsRMSD = args.heavyRMSD, kpush=args.kpush, alp=args.alpha)
+	confs = Conf_Generator_XTB_Metadyn(min_Valid_Molecules = args.minValidMolecules, threshold = args.threshold, debug = args.debug, weighting_Scheme=args.weighting, OnlyHeavyAtomsRMSD = args.heavyRMSD, kpush=args.kpush, alp=args.alpha, start_Structure_Filename = args.input)
 	confs.run()
 	confs.write_XYZ(fileName = "unique.xyz", molecules = confs.unique_Molecules)
 	pass

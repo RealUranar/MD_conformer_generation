@@ -1,11 +1,18 @@
 FROM python:3.10-bookworm
 
-#Install Rascaline
+#Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > installRust.sh \
     && chmod 700 installRust.sh \
-    && ./installRust.sh -y \
-    && source $HOME/.cargo/env \
-    && pip install 'rascaline @ git+https://github.com/Luthaf/rascaline.git'
+    && ./installRust.sh -y  \
+	&& rm installRust.sh \
+	&& . root/.cargo/env
+
+ENV PATH=/root/.cargo/bin:$PATH
+# #Install FeAtomic
+RUN pip install --upgrade pip \
+	&& git clone https://github.com/metatensor/featomic \
+	&& cd featomic \
+	&& pip install .
 
 RUN cd /usr/local \
 	&& wget https://github.com/grimme-lab/xtb/releases/download/v6.7.0/xtb-6.7.0-linux-x86_64.tar.xz \
@@ -15,10 +22,12 @@ RUN cd /usr/local \
 ENV PATH=/usr/local/xtb-dist/bin:$PATH
 
 RUN cd /usr/local/bin \
-	&& wget https://github.com/crest-lab/crest/releases/download/latest/crest-latest.tar.xz \
-	&& tar -xf crest-latest.tar.xz \
+	&& wget https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-12-ubuntu-latest.tar.xz \
+	&& tar -xf crest-gnu-12-ubuntu-latest.tar.xz \
 	&& chmod +x crest \
-	&& rm crest-latest.tar.xz
+	&& rm crest-gnu-12-ubuntu-latest.tar.xz
+
+RUN pip install mindlessgen
 
 ENV PATH=/usr/local/bin:$PATH
 
@@ -27,6 +36,6 @@ RUN pip install matplotlib rdkit
 RUN mkdir /modules
 
 COPY ConfGeneration /modules/ConfGeneration
-COPY startup.py /modules/
+COPY main.py /modules/
 
-ENTRYPOINT ["python", "/modules/startup.py"]
+ENTRYPOINT ["python", "/modules/main.py"]
