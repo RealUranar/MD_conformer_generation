@@ -59,6 +59,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
           help="Threshold at which structures are rejected based on their RMSD value, possible values: 'auto' or a float value",
      )
      parser.add_argument(
+          "--threshold-sample-size",
+          type=int,
+          default=40,
+          help="Number of structures the 'auto' threshold should generate per 100 generated structures",
+     )
+     parser.add_argument(
           "-r",
           "--restart",
           action="store_true",
@@ -112,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
                work_folder=args.work_folder,
                min_valid_molecules=args.min_valid_molecules,
                threshold=args.threshold,
+               threshold_sample_size=args.threshold_sample_size,
                only_heavy_atoms_rmsd=args.heavy_rmsd,
                kpush=args.kpush,
                alp=args.alp,

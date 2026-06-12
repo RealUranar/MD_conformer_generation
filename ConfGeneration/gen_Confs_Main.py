@@ -19,7 +19,7 @@ from ase.io import read, write
 import os, sys, shutil, time
 
 class ConfGenerator:
-    def __init__(self, structure_name:str, min_valid_molecules:int, threshold: str = "auto", only_heavy_atoms_rmsd:bool = False, restart:bool = False, work_folder:str = "work", debug:bool=False):
+    def __init__(self, structure_name:str, min_valid_molecules:int, threshold: str = "auto", threshold_sample_size: int = 40, only_heavy_atoms_rmsd:bool = False, restart:bool = False, work_folder:str = "work", debug:bool=False):
         """Base class for conformer generators.
 
         Parameters
@@ -44,6 +44,7 @@ class ConfGenerator:
         self.structure_name = structure_name
         self.min_valid_molecules = min_valid_molecules
         self.threshold = -1 if threshold == "auto" else float(threshold)
+        self.threshold_sample_size = threshold_sample_size
         self.only_heavy_atoms_rmsd = only_heavy_atoms_rmsd
         self.debug = debug
         self.rmsd_matrix = None
@@ -64,6 +65,7 @@ Structure Name: {structure_name}
 Minimum Valid Molecules: {min_valid_molecules}
 Only Heavy Atoms RMSD: {only_heavy_atoms_rmsd}
 Automatic Threshold Calculation: {self.threshold == -1}
+{f'Threshold Sample Size: {self.threshold_sample_size}' if self.threshold == -1 else f'user-defined RMSD threshold: {self.threshold:.3f}'}
 Restart (reading save_structures.xyz): {restart}
 Debug Mode: {debug}
 """)
@@ -95,8 +97,7 @@ Debug Mode: {debug}
             # rate for this molecule (heuristic; see `calc_molecule_specific_threshold`).
             self.threshold, _ = self.calc_molecule_specific_threshold(new_molecules)
             self.log(f"Automatically determined RMSD threshold: {self.threshold:.3f}")
-        else:
-            self.log(f"Using user-defined RMSD threshold: {self.threshold:.3f}")
+
         unique_molecules = self.search_unique_molecules(new_molecules)
         write(os.path.join("unique_confs.xyz"), unique_molecules) #Create a intermediate file with the unique conformers up to this point
         
@@ -143,16 +144,15 @@ Debug Mode: {debug}
         return tmp_molecules
         
     def calc_molecule_specific_threshold(self, molecules: list[ase.Atoms]) -> tuple[float, float]:
-        """Calculate a molecule specific threshold, based on an acceptance rate of 25 molecules per 100 generated molecules.
+        """Calculate a molecule specific threshold, based on an acceptance rate of self.threshold_sample_size molecules per 100 generated molecules.
 
         Subclasses can override this if they want to use a different strategy for calculating the threshold.
         """
-        n_confs_to_select = 60
         n_trials = 5
         max_iterations = 40
-        if len(molecules) < n_confs_to_select:
+        if len(molecules) < self.threshold_sample_size:
             raise ValueError(
-                f"Cannot select {n_confs_to_select} molecules from only {len(molecules)} molecules.")
+                f"Cannot select {self.threshold_sample_size} molecules from only {len(molecules)} molecules.")
         
         thresholds = []
         for i in range(n_trials):
@@ -169,7 +169,7 @@ Debug Mode: {debug}
                 high = thresholds[0] * 2
             
             # Expand high until it selects <= target molecules.
-            while len(self.search_unique_molecules(trial_molecules, threshold=high)) > n_confs_to_select:
+            while len(self.search_unique_molecules(trial_molecules, threshold=high)) > self.threshold_sample_size:
                 high *= 2
 
                 if high > 1e6:
@@ -183,7 +183,7 @@ Debug Mode: {debug}
                 mid = (low + high) / 2
 
                 n_mols = len(self.search_unique_molecules(trial_molecules, threshold=mid))
-                error = abs(n_mols - n_confs_to_select)
+                error = abs(n_mols - self.threshold_sample_size)
 
                 if error < best_error:
                     best_error = error
@@ -196,13 +196,13 @@ Debug Mode: {debug}
                     f"Threshold: {mid:.6f}, Unique Molecules: {n_mols}"
                 )
 
-                if n_mols == n_confs_to_select:
+                if n_mols == self.threshold_sample_size:
                     best_threshold = mid
                     best_n_mols = n_mols
                     break
 
                 # If too many molecules are selected, threshold is too low.
-                if n_mols > n_confs_to_select:
+                if n_mols > self.threshold_sample_size:
                     low = mid
                 else:
                     high = mid
