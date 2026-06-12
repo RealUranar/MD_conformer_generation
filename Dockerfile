@@ -1,7 +1,7 @@
 FROM anaconda/miniconda:latest
 
 RUN apt-get update \
-    && apt-get install -y curl build-essential \
+    && apt-get install -y curl build-essential git wget\
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +29,9 @@ ENV OMP_STACKSIZE=5G
 ENV OMP_NUM_THREADS=12,1
 
 #Install xtb
-RUN conda config --add channels conda-forge \
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
+    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r \
+    && conda config --add channels conda-forge \
     && conda install xtb \
     && conda clean -a 
 
