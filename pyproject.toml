@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conf-generation"
+version = "0.1.0"
+description = "Conformer generation utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [{name = "Unknown"}]
+dependencies = [
+  "ase",
+  "numpy",
+  "matplotlib",
+]
+
+[project.scripts]
+conf-generation = "ConfGeneration.main:main"
+
+[tool.setuptools]
+packages = ["ConfGeneration"]

@@ -1,161 +1,178 @@
-from typing import List
-import os
-from rdkit import Chem
-from rdkit.Chem import AllChem
-os.path.join("/modules")
-try:
-    from ConfGeneration.gen_Confs_Main import Conf_Generator
-except:
-    from RMSD.conformer_generation.gen_Confs_Main_Old import Conf_Generator
+"""Concrete conformer generator implementations.
 
-class Conf_Generator_XTB(Conf_Generator):
-    def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb", start_Structure_Filename : str = "inStructure.xyz"):
-        super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD, start_Structure_Filename)
-        self.xtb_Path = xtb_Path
-        with open("md.inp", "w") as f:
-            f.writelines([
-                "$md\n",
-                "   temp=400 # in K\n",
-                "   time= 1.0  # in ps\n",
-                "   dump= 10.0  # in fs\n",
-                "   step=  0.2  # in fs\n",
-                "   velo=false\n",
-                "   nvt =true\n",
-                "   hmass=4\n",
-                "   shake=0\n",
-                "   sccacc=2.0\n",
-                "   restart=false\n",
-                "$end",
-                "$wall\n",
-                f"   potential=logfermi\n",
-                f"   sphere: auto, all\n",
-                "$end"])
-        with open("confs.log", "a") as f:
-            f.write(f"Generation Tool: XTB_MD\n")
+Currently this module provides an XTB-based metadynamics generator that
+produces conformer candidates via MD and then relies on the `ConfGenerator`
+base class to filter a unique subset.
+"""
 
-    
-    def gen_Confs(self, iteration = 0, with_Opt = False, start_Structure_Filename : str = "nextStart.xyz") -> List:
-        #If xtb trajectory already exists, read and return them
-        if os.path.exists(f"xtb_{iteration}.trj"):
-            molecules = self.read_Moleculues_XYZ(f"xtb_{iteration}.trj")
-            Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
-            return molecules
-        if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --cma --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
-        else:
-            ret = os.system(f"{self.xtb_Path} --md --cma --norestart --alpb water --input md.inp {start_Structure_Filename} > out.txt 2>&1")
-        if ret != 0:
-            raise RuntimeError("XTB did not run succesfully!")
+from ConfGeneration.gen_Confs_Main import ConfGenerator
+
+import ase
+from ase.io import read, write
+
+import subprocess
+import os, sys, shutil
+
+import numpy as np
+
+class XTBMetadynamicsConfGenerator(ConfGenerator):
+    def __init__(
+        self,
+        structure_name: str,
+        min_valid_molecules: int,
+        *,
+        kpush: float = 0.1,
+        alp: float = 0.5,
+        xtb_path: str = "xtb",
+        **kwargs,
+    ):
+        """Generate conformers using XTB metadynamics.
+
+        Parameters
+        ----------
+        structure_name:
+            Input structure file (xyz).
+        min_valid_molecules:
+            Target number of unique conformers.
+        kpush:
+            Metadynamics bias strength parameter in XTB.
+        alp:
+            Metadynamics bias width parameter in XTB.
+        xtb_path:
+            Path to the `xtb` executable (must be available in PATH or an absolute path).
+        kwargs:
+            Forwarded to `ConfGenerator` (e.g. `threshold`, `work_folder`, `restart`, ...).
+        """
+        super().__init__(structure_name, min_valid_molecules, **kwargs)
+
+        self.kpush = kpush
+        self.alp = alp
+        self.xtb_path = xtb_path
         
-        #read the trajectory File
-        molecules = self.read_Moleculues_XYZ(f"xtb.trj")
-        #Generate next starting xyz_File
-        Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
-        #Rename trajectory file for save keeping because xtb overrides them
-        os.rename(f"xtb.trj", f"xtb_{iteration}.trj")
-        return molecules
-    
-class Conf_Generator_XTB_Metadyn(Conf_Generator):
-    def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb", kpush = 0.1, alp = 0.01, start_Structure_Filename : str = "inStructure.xyz"):
-        super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD, start_Structure_Filename)
-        self.xtb_Path = xtb_Path
-        with open("Ref_Structs.xyz", "w") as f:
+        self.log(
+f"""Generation Tool: XTB_Metadynamics
+kpush: {kpush}
+alp: {alp}
+XTB Path: {xtb_path}
+""")
+        # Write an empty reference structure file. XTB will refuse to start a
+        # metadynamics run if this file is missing.
+        with open(os.path.join(self.work_folder, "Ref_Structs.xyz"), "w") as f:
             f.write("")
-        with open("metadyn.inp", "w") as f:
+            
+    def write_MD_input(self, number_of_structures: int):
+        """Write `metadyn.inp` for XTB MD/metadynamics.
+
+        Notes
+        -----
+        - The simulation length is derived from the requested number of conformers.
+        - A minimum of 100 structures is enforced to avoid very short trajectories.
+        """
+        if number_of_structures < 100: number_of_structures = 100 
+            
+        dump_interval = 0.01  # in ps
+        simulation_time = number_of_structures * 2 * dump_interval  # in ps
+        
+        with open(os.path.join(self.work_folder, "metadyn.inp"), "w") as f:
             f.writelines([
                 "$md\n",
-                "   temp=400 # in K\n",
-                "   time= 1.0  # in ps\n",
-                "   dump= 10.0  # in fs\n",
-                "   step=  0.2  # in fs\n",
-                "   velo=false\n",
-                "   nvt =true\n",
-                "   hmass=4\n",
-                "   shake=0\n",
-                "   sccacc=2.0\n",
-                "   restart=false\n",
+                "   temp= 400 # in K\n",
+                f"   time= {simulation_time}  # in ps\n",
+                f"   dump= {dump_interval * 1000}  # in fs\n",
+                "   step= 2  # in fs\n",
+                "   velo= false\n",
+                "   nvt= true\n",
+                "   hmass= 4\n",
+                "   shake= 0\n",
+                "   sccacc= 1.0\n",
+                "   restart= false\n",
                 "$end\n",
                 "$metadyn\n",
-                f"   kpush={kpush}\n",
-                f"   alp={alp}\n",
-                "    coord=Ref_Structs.xyz\n",
-                "$end",
+                f"   kpush={self.kpush}\n",
+                f"   alp={self.alp}\n",
+                "   coord=Ref_Structs.xyz\n",
+                "$end\n",
                 "$wall\n",
                 f"   potential=logfermi\n",
                 f"   sphere: auto, all\n",
-                "$end"
+                "$end\n",
                 ])
-        with open("confs.log", "a") as f:
-            f.write(f"Generation Tool: XTB_Metadynamics\n")
-            f.write(f"kpush: {kpush}\n")
-            f.write(f"alp: {alp}\n")
 
+
+    def get_metadynamics_structures(self, molecules: list[ase.Atoms], fraction_to_add: float = 0.01) -> list[ase.Atoms]:
+        """
+        Select a subset of generated structures as metadynamics references.
+
+        XTB metadynamics can bias away from provided reference structures.
+        This method samples a small fraction of frames from the trajectory and
+        appends them to `Ref_Structs.xyz` to diversify subsequent iterations.
+        """
+        n_new_ref_structs = max(1, int(len(molecules) * fraction_to_add))
+        return [molecules[i] for i in np.random.choice(np.arange(len(molecules)), size=n_new_ref_structs)]
+        
     
-    def gen_Confs(self, iteration = 0, with_Opt = False, start_Structure_Filename : str = "nextStart.xyz") -> List:
-        #If xtb trajectory already exists, read and return them
-        if os.path.exists(f"xtb_{iteration}.trj"):
-            molecules = self.read_Moleculues_XYZ(f"xtb_{iteration}.trj")
-            Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
+    def gen_confs(self, n_confs: int, restart: bool = False, debug: bool = False) -> list[ase.Atoms]:
+        """Run an XTB metadynamics step and return trajectory frames as conformers.
+
+        Parameters
+        ----------
+        n_confs:
+            Approximate number of conformers to aim for (used to scale MD time).
+        restart:
+            If true, reads `save_structures.xyz` and continues from the last frame.
+        debug:
+            Currently unused (kept for signature compatibility).
+        """
+        if restart:
+            self.log("Restarting XTB Metadynamics from previous run...")
+            if not os.path.exists(os.path.join(self.work_folder, "save_structures.xyz")):
+                raise FileNotFoundError("No save_structures.xyz file found for restart. Please check the work folder for previous runs.")
+            molecules = read(os.path.join(self.work_folder, "save_structures.xyz"), index=":", format="xyz")
+            write(os.path.join(self.work_folder, "start_struct.xyz"), molecules[-1], format="xyz") #The last structure is used as the starting structure for the next iteration
+            write(os.path.join(self.work_folder, "Ref_Structs.xyz"), self.get_metadynamics_structures(molecules, 0.01), format="xyz", append=True) #Structures, used for the metadynamics
             return molecules
-        if with_Opt:
-            ret = os.system(f"{self.xtb_Path} --omd --cma --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
-        else:
-            ret = os.system(f"{self.xtb_Path} --metadyn 100 --cma --norestart --alpb water --input metadyn.inp {start_Structure_Filename} > out.txt 2>&1")
-        if ret != 0:
-            raise RuntimeError("XTB did not run succesfully!")
+            
+        env = os.environ.copy()
+        env["OMP_STACKSIZE"] = "5G"
+        
+        self.write_MD_input(n_confs)
+        
+        with open(os.path.join(self.work_folder, "XTB.out"), "a") as f:
+            # `check=False` because XTB may return non-zero for recoverable issues;
+            # the downstream file checks will catch failures.
+            subprocess.run(f"{self.xtb_path} --metadyn 1000 --md --cma --norestart --alpb water --input metadyn.inp start_struct.xyz", shell=True, check=False, cwd=self.work_folder, stdout=f, stderr=f, env=env) 
+            
+        molecules = read(os.path.join(self.work_folder, "xtb.trj"), index=":", format="xyz")
+        if len(molecules) < 10: raise ValueError("XTB did not generate enough conformers. Please check the XTB output for errors.")
+        os.remove(os.path.join(self.work_folder, "xtb.trj"))
+        
+        write(os.path.join(self.work_folder, "Ref_Structs.xyz"), self.get_metadynamics_structures(molecules, 0.01), format="xyz", append=True) #Structures, used for the metadynamics
+        write(os.path.join(self.work_folder, "save_structures.xyz"), molecules, format="xyz", append=True) #All generated structures, for debugging, visualization and restarts
+        write(os.path.join(self.work_folder, "start_struct.xyz"), molecules[-1], format="xyz") #The last structure is used as the starting structure for the next iteration
 
-        #read the trajectory File
-        molecules = self.read_Moleculues_XYZ(f"xtb.trj")
-        #Generate next starting xyz_File
-        Chem.rdmolfiles.MolToXYZFile(molecules[-1], "nextStart.xyz")
-        #Add first Structure of last run to Bias
-
-        with open("Ref_Structs.xyz", "a") as f:
-            f.write(Chem.rdmolfiles.MolToXYZBlock((molecules[0])))
-
-        #Rename trajectory file for save keeping because xtb overrides them
-        os.rename(f"xtb.trj", f"xtb_{iteration}.trj")
         return molecules
 
-class Conf_Generator_rdkit(Conf_Generator):
-    def __init__(self, min_Valid_Molecules: int, threshold: float, weighting_Scheme: str = "N100", debug=False, OnlyHeavyAtomsRMSD=False, xtb_Path = "xtb"):
-        super().__init__(min_Valid_Molecules, threshold, weighting_Scheme, debug, OnlyHeavyAtomsRMSD)
-        self.xtb_Path = xtb_Path
-        with open("confs.log", "a") as f:
-            f.write(f"Generation Tool: RdKit\n")
+    def optimize_molecule(self) -> ase.Atoms:
+        """
+        Optimize the input structure using XTB and set it as MD start structure.
 
-    def gen_Confs(self, iteration = 0, with_Opt = False, start_Structure_Filename : str = "nextStart.xyz"):
-        def ConfToMol(mol, conf_id):
-            conf = mol.GetConformer(conf_id)
-            new_mol = Chem.Mol(mol)
-            new_mol.RemoveAllConformers()
-            new_mol.AddConformer(Chem.Conformer(conf), assignId=True)
-            return new_mol
-        
-        if with_Opt:
-            os.system(f"{self.xtb_Path} {start_Structure_Filename} --opt vtight")
-            start_Structure_Filename = "xtbopt.xyz"
-        
-        from rdkit.Chem.rdDetermineBonds import DetermineBonds
-        mol = Chem.rdmolfiles.MolFromXYZFile(start_Structure_Filename)
-        DetermineBonds(mol,charge=0)
-
-        params = AllChem.ETKDGv3()
-        params.verbose = False
-        params.numThreads = 0
-        params.clearConfs = True
-        params.onlyHeavyAtomsForRMS = False
-        params.maxIterations = 1000
-        params.pruneRmsThresh = 0.01
-        confs = Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=10000, params=params)
-        
-        AllChem.MMFFOptimizeMoleculeConfs(mol, numThreads=0, maxIters=5)
-        AllChem.AlignMolConformers(mol)
-
-        molecules = [ConfToMol(mol, confID) for confID in confs]
-        import random
-        Chem.rdmolfiles.MolToXYZFile(molecules[random.randint(0,len(molecules)-1)], "nextStart.xyz")
-        return molecules
-
-if __name__ == "__main__":
-    print(len(Conf_Generator_rdkit(300, 0.01).gen_Confs(start_Structure_Filename="start.xyz")))
+        Returns
+        -------
+        ase.Atoms
+            The optimized structure read from `xtbopt.xyz`.
+        """
+        with open(os.path.join(self.work_folder, "XTB.out"), "a") as f:
+            # Use a relative path from the work folder to the input structure.
+            input_path = os.path.join("..", self.structure_name)
+            subprocess.run(
+                f"{self.xtb_path} {input_path} --opt --alpb water",
+                shell=True,
+                check=False,
+                cwd=self.work_folder,
+                stdout=f,
+                stderr=f,
+            )
+        optimized_molecule = read(os.path.join(self.work_folder, "xtbopt.xyz"), format="xyz")
+        os.remove(os.path.join(self.work_folder, "xtbopt.xyz"))
+        write(os.path.join(self.work_folder, "start_struct.xyz"), optimized_molecule, format="xyz") #The optimized structure is used as the starting structure for the next iteration
+        return optimized_molecule
