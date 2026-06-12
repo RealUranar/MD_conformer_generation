@@ -97,8 +97,8 @@ Debug Mode: {debug}
             self.log(f"Automatically determined RMSD threshold: {self.threshold:.3f}")
         else:
             self.log(f"Using user-defined RMSD threshold: {self.threshold:.3f}")
-        write(os.path.join(self.work_folder, "generated_confs.xyz"), new_molecules, format="xyz")
         unique_molecules = self.search_unique_molecules(new_molecules)
+        write(os.path.join("unique_confs.xyz"), unique_molecules) #Create a intermediate file with the unique conformers up to this point
         
         if self.debug: ConfGenerator.show_RMSD_matrix(self.rmsd_matrix)
         self.log(f"{'Iteration':<10}| {'Generated / Unique':<19}| {'Minimum RMSD':>10}| {'Time Elapsed':>10}")
@@ -112,7 +112,8 @@ Debug Mode: {debug}
             n_generated_confs = len(new_molecules)
 
             unique_molecules = self.search_unique_molecules(new_molecules, unique_molecules)
-
+            write(os.path.join("unique_confs.xyz"), unique_molecules) #Create a intermediate file with the unique conformers up to this point
+            
             if self.debug: ConfGenerator.show_RMSD_matrix(self.rmsd_matrix)
             
             self.log(f"{iteration:<10}|{n_generated_confs:>10} / {len(unique_molecules):<7}| {self.get_min_RMSD(self.rmsd_matrix):>8.3f}| {time.perf_counter() - start:>10.2f}s")
