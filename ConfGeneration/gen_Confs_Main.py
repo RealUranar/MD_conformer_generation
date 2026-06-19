@@ -102,8 +102,8 @@ Debug Mode: {debug}
         write(os.path.join("unique_confs.xyz"), unique_molecules) #Create a intermediate file with the unique conformers up to this point
         
         if self.debug: ConfGenerator.show_RMSD_matrix(self.rmsd_matrix)
-        self.log(f"{'Iteration':<10}| {'Generated / Unique':<19}| {'Minimum RMSD':>10}| {'Time Elapsed':>10}")
-        self.log(f"{1:<10}|{n_generated_confs:>10} / {len(unique_molecules):<7}| {self.get_min_RMSD(self.rmsd_matrix):>8.3f}| {time.perf_counter() - start:>10.2f}s")
+        self.log(f"{'Iteration':<10}| {'Generated / Unique':<19}| {'Minimum RMSD':>10} | {'Time Elapsed':>10}")
+        self.log(f"{1:<10}|{n_generated_confs:>10} / {len(unique_molecules):<7}| {self.get_min_RMSD(self.rmsd_matrix):>13.3f}| {time.perf_counter() - start:>10.2f}s")
         
         iteration = 2
         while len(unique_molecules) < self.min_valid_molecules:
@@ -117,7 +117,7 @@ Debug Mode: {debug}
             
             if self.debug: ConfGenerator.show_RMSD_matrix(self.rmsd_matrix)
             
-            self.log(f"{iteration:<10}|{n_generated_confs:>10} / {len(unique_molecules):<7}| {self.get_min_RMSD(self.rmsd_matrix):>8.3f}| {time.perf_counter() - start:>10.2f}s")
+            self.log(f"{iteration:<10}|{n_generated_confs:>10} / {len(unique_molecules):<7}| {self.get_min_RMSD(self.rmsd_matrix):>13.3f}| {time.perf_counter() - start:>10.2f}s")
             iteration += 1
         
         self.rmsd_matrix = ConfGenerator.calc_RMSD_matrix(
@@ -148,7 +148,7 @@ Debug Mode: {debug}
 
         Subclasses can override this if they want to use a different strategy for calculating the threshold.
         """
-        n_trials = 5
+        n_trials = len(molecules) // 100
         max_iterations = 40
         if len(molecules) < self.threshold_sample_size:
             raise ValueError(
@@ -156,10 +156,7 @@ Debug Mode: {debug}
         
         thresholds = []
         for i in range(n_trials):
-            trial_molecules = [molecules[j] for j in np.random.choice(
-                                                        np.arange(len(molecules)),
-                                                        size=min(100, len(molecules)),
-                                                        replace=False,)]
+            trial_molecules = molecules[(i*100):(i+1)*100]
 
             # Choose broad initial bounds.
             low = 0.1

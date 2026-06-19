@@ -96,6 +96,7 @@ XTB Path: {xtb_path}
                 f"   potential=logfermi\n",
                 f"   sphere: auto, all\n",
                 "$end\n",
+                "$cma\n",
                 ])
 
 
@@ -165,7 +166,7 @@ XTB Path: {xtb_path}
             # Use a relative path from the work folder to the input structure.
             input_path = os.path.join("..", self.structure_name)
             subprocess.run(
-                f"{self.xtb_path} {input_path} --opt --alpb water",
+                f"{self.xtb_path} {input_path} --opt --cma --alpb water",
                 shell=True,
                 check=False,
                 cwd=self.work_folder,
