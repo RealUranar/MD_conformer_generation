@@ -19,7 +19,7 @@ from ase.io import read, write
 import os, sys, shutil, time
 
 class ConfGenerator:
-    def __init__(self, structure_name:str, min_valid_molecules:int, threshold: str = "auto", threshold_sample_size: int = 40, only_heavy_atoms_rmsd:bool = False, restart:bool = False, work_folder:str = "work", debug:bool=False):
+    def __init__(self, structure_name:str, min_valid_molecules:int, threshold: str = "auto", threshold_sample_size: int = 25, only_heavy_atoms_rmsd:bool = False, restart:bool = False, work_folder:str = "work", debug:bool=False):
         """Base class for conformer generators.
 
         Parameters

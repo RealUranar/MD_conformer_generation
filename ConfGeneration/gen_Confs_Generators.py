@@ -79,12 +79,12 @@ XTB Path: {xtb_path}
                 "   temp= 400 # in K\n",
                 f"   time= {simulation_time}  # in ps\n",
                 f"   dump= {dump_interval * 1000}  # in fs\n",
-                "   step= 2  # in fs\n",
+                "   step= 0.2  # in fs\n",
                 "   velo= false\n",
                 "   nvt= true\n",
                 "   hmass= 4\n",
                 "   shake= 0\n",
-                "   sccacc= 1.0\n",
+                "   sccacc= 2.0\n",
                 "   restart= false\n",
                 "$end\n",
                 "$metadyn\n",
@@ -138,14 +138,52 @@ XTB Path: {xtb_path}
         
         self.write_MD_input(n_confs)
         
-        with open(os.path.join(self.work_folder, "XTB.out"), "a") as f:
-            # `check=False` because XTB may return non-zero for recoverable issues;
-            # the downstream file checks will catch failures.
-            subprocess.run(f"{self.xtb_path} --metadyn 1000 --md --cma --norestart --alpb water --input metadyn.inp start_struct.xyz", shell=True, check=False, cwd=self.work_folder, stdout=f, stderr=f, env=env) 
-            
-        molecules = read(os.path.join(self.work_folder, "xtb.trj"), index=":", format="xyz")
-        if len(molecules) < 10: raise ValueError("XTB did not generate enough conformers. Please check the XTB output for errors.")
-        os.remove(os.path.join(self.work_folder, "xtb.trj"))
+        xtb_trj = os.path.join(self.work_folder, "xtb.trj")
+        xtb_out = os.path.join(self.work_folder, "XTB.out")
+
+        # Remove stale trajectory before running xTB.
+        # Otherwise a failed xTB run could accidentally reuse an old xtb.trj.
+        if os.path.exists(xtb_trj):
+            os.remove(xtb_trj)
+
+        with open(xtb_out, "a") as f:
+            result = subprocess.run(
+                f"{self.xtb_path} --metadyn 1000 --md --cma --norestart --alpb water --input metadyn.inp start_struct.xyz",
+                shell=True,
+                check=False,
+                cwd=self.work_folder,
+                stdout=f,
+                stderr=f,
+                env=env,
+            )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"xTB metadynamics failed with return code {result.returncode}. "
+                f"Check this file for details: {xtb_out}"
+            )
+
+        if not os.path.exists(xtb_trj):
+            raise RuntimeError(
+                f"xTB finished without creating xtb.trj. "
+                f"Check this file for details: {xtb_out}"
+            )
+
+        try:
+            molecules = read(xtb_trj, index=":", format="xyz")
+        except Exception as exc:
+            raise RuntimeError(
+                f"xTB created xtb.trj, but ASE could not read it. "
+                f"Check this file for details: {xtb_out}"
+            ) from exc
+
+        if len(molecules) < 10:
+            raise RuntimeError(
+                f"xTB generated only {len(molecules)} conformers. "
+                f"Check this file for details: {xtb_out}"
+            )
+
+        os.remove(xtb_trj)
         
         write(os.path.join(self.work_folder, "Ref_Structs.xyz"), self.get_metadynamics_structures(molecules, 0.01), format="xyz", append=True) #Structures, used for the metadynamics
         write(os.path.join(self.work_folder, "save_structures.xyz"), molecules, format="xyz", append=True) #All generated structures, for debugging, visualization and restarts
@@ -162,10 +200,15 @@ XTB Path: {xtb_path}
         ase.Atoms
             The optimized structure read from `xtbopt.xyz`.
         """
-        with open(os.path.join(self.work_folder, "XTB.out"), "a") as f:
-            # Use a relative path from the work folder to the input structure.
+        xtb_opt = os.path.join(self.work_folder, "xtbopt.xyz")
+        xtb_out = os.path.join(self.work_folder, "XTB.out")
+
+        if os.path.exists(xtb_opt):
+            os.remove(xtb_opt)
+
+        with open(xtb_out, "a") as f:
             input_path = os.path.join("..", self.structure_name)
-            subprocess.run(
+            result = subprocess.run(
                 f"{self.xtb_path} {input_path} --opt --cma --alpb water",
                 shell=True,
                 check=False,
@@ -173,7 +216,21 @@ XTB Path: {xtb_path}
                 stdout=f,
                 stderr=f,
             )
-        optimized_molecule = read(os.path.join(self.work_folder, "xtbopt.xyz"), format="xyz")
-        os.remove(os.path.join(self.work_folder, "xtbopt.xyz"))
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"xTB optimization failed with return code {result.returncode}. "
+                f"Check this file for details: {xtb_out}"
+            )
+
+        if not os.path.exists(xtb_opt):
+            raise RuntimeError(
+                f"xTB optimization finished without creating xtbopt.xyz. "
+                f"Check this file for details: {xtb_out}"
+            )
+
+        optimized_molecule = read(xtb_opt, format="xyz")
+
+        os.remove(xtb_opt)
         write(os.path.join(self.work_folder, "start_struct.xyz"), optimized_molecule, format="xyz") #The optimized structure is used as the starting structure for the next iteration
         return optimized_molecule
