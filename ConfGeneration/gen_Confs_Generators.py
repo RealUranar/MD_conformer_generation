@@ -24,6 +24,9 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         kpush: float = 0.1,
         alp: float = 0.5,
         xtb_path: str = "xtb",
+        constraint_atom_1: int | None = None,
+        constraint_atom_2: int | None = None,
+        constraint_distance: float | str | None = None,
         **kwargs,
     ):
         """Generate conformers using XTB metadynamics.
@@ -48,13 +51,28 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         self.kpush = kpush
         self.alp = alp
         self.xtb_path = xtb_path
-        
+        self.constraint_atom_1 = constraint_atom_1
+        self.constraint_atom_2 = constraint_atom_2
+        self.constraint_distance = constraint_distance
+        constraint_values = (
+            self.constraint_atom_1,
+            self.constraint_atom_2,
+            self.constraint_distance,
+        )
+
+        if any(value is not None for value in constraint_values) and not all(
+            value is not None for value in constraint_values
+        ):
+            raise ValueError(
+                "A distance constraint requires constraint_atom_1, "
+                "constraint_atom_2, and constraint_distance."
+            )
         self.log(
-f"""Generation Tool: XTB_Metadynamics
-kpush: {kpush}
-alp: {alp}
-XTB Path: {xtb_path}
-""")
+        f"""Generation Tool: XTB_Metadynamics
+        kpush: {kpush}
+        alp: {alp}
+        XTB Path: {xtb_path}
+        """)
         # Write an empty reference structure file. XTB will refuse to start a
         # metadynamics run if this file is missing.
         with open(os.path.join(self.work_folder, "Ref_Structs.xyz"), "w") as f:
@@ -72,6 +90,20 @@ XTB Path: {xtb_path}
             
         dump_interval = 0.01  # in ps
         simulation_time = number_of_structures * 2 * dump_interval  # in ps
+
+        constraint_lines = []
+
+        if self.constraint_distance is not None:
+            constraint_lines = [
+                "$constrain\n",
+                "   force constant=1.0\n",
+                (
+                    f"   distance: {self.constraint_atom_1}, "
+                    f"{self.constraint_atom_2}, "
+                    f"{self.constraint_distance}\n"
+                ),
+                "$end\n",
+            ]
         
         with open(os.path.join(self.work_folder, "metadyn.inp"), "w") as f:
             f.writelines([
@@ -96,6 +128,7 @@ XTB Path: {xtb_path}
                 f"   potential=logfermi\n",
                 f"   sphere: auto, all\n",
                 "$end\n",
+                *constraint_lines,
                 "$cma\n",
                 ])
 
