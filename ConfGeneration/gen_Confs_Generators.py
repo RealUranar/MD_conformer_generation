@@ -24,9 +24,7 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         kpush: float = 0.1,
         alp: float = 0.5,
         xtb_path: str = "xtb",
-        constraint_atom_1: int | None = None,
-        constraint_atom_2: int | None = None,
-        constraint_distance: float | str | None = None,
+        constraints: list[str] | None = None,
         **kwargs,
     ):
         """Generate conformers using XTB metadynamics.
@@ -51,27 +49,17 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         self.kpush = kpush
         self.alp = alp
         self.xtb_path = xtb_path
-        self.constraint_atom_1 = constraint_atom_1
-        self.constraint_atom_2 = constraint_atom_2
-        self.constraint_distance = constraint_distance
-        constraint_values = (
-            self.constraint_atom_1,
-            self.constraint_atom_2,
-            self.constraint_distance,
-        )
+        self.constraints = constraints or []
 
-        if any(value is not None for value in constraint_values) and not all(
-            value is not None for value in constraint_values
-        ):
-            raise ValueError(
-                "A distance constraint requires constraint_atom_1, "
-                "constraint_atom_2, and constraint_distance."
-            )
+        if not all(isinstance(constraint, str) for constraint in self.constraints):
+            raise TypeError("Each xTB constraint must be provided as a string.")
+
         self.log(
         f"""Generation Tool: XTB_Metadynamics
         kpush: {kpush}
         alp: {alp}
         XTB Path: {xtb_path}
+        Constraints: {self.constraints if self.constraints else "None"}
         """)
         # Write an empty reference structure file. XTB will refuse to start a
         # metadynamics run if this file is missing.
@@ -93,15 +81,13 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
 
         constraint_lines = []
 
-        if self.constraint_distance is not None:
+        if self.constraints:
             constraint_lines = [
                 "$constrain\n",
-                "   force constant=1.0\n",
-                (
-                    f"   distance: {self.constraint_atom_1}, "
-                    f"{self.constraint_atom_2}, "
-                    f"{self.constraint_distance}\n"
-                ),
+                *[
+                    f"   {constraint.strip()}\n"
+                    for constraint in self.constraints
+                ],
                 "$end\n",
             ]
         
