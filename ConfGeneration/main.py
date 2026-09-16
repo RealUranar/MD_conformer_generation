@@ -98,6 +98,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
      )
      parser.add_argument("-d", "--debug", action="store_true", help="Debug")
      parser.add_argument("--cpus", type=int, default=8, help="Number of CPUs to use")
+     parser.add_argument(
+          "--constraints",
+          type=str,
+          default=None,
+          help="xTB constraint file; constraints are applied to both the initial optimization and metadynamics",
+     )
      return parser.parse_args(argv)
 
 
@@ -112,6 +118,25 @@ def main(argv: list[str] | None = None) -> int:
      os.environ["OMP_NUM_THREADS"] = str(args.cpus)
 
      if args.program == "Metadynamics":
+
+          # Read optional xTB constraints.
+          constraints = []
+
+          if args.constraints is not None:
+               if not os.path.isfile(args.constraints):
+                    raise FileNotFoundError(
+                         f"Constraint file not found: {args.constraints}"
+                    )
+
+               with open(args.constraints, "r") as f:
+                    constraints = [
+                         line.strip()
+                         for line in f
+                         if line.strip()
+                         and not line.strip().startswith("#")
+                         and not line.strip().startswith("$")
+                    ]
+
           # XTB metadynamics-based generator.
           confs = XTBMetadynamicsConfGenerator(
                structure_name=args.input,
@@ -124,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
                alp=args.alp,
                debug=args.debug,
                restart=args.restart,
+               constraints=constraints,
           )
           confs.run()
           return 0

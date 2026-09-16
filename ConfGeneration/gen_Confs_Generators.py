@@ -210,9 +210,13 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
 
         return molecules
 
+
     def optimize_molecule(self) -> ase.Atoms:
         """
         Optimize the input structure using XTB and set it as MD start structure.
+
+        If constraints are provided, apply the same constraints during the
+        initial optimization that are later used for metadynamics.
 
         Returns
         -------
@@ -221,14 +225,35 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         """
         xtb_opt = os.path.join(self.work_folder, "xtbopt.xyz")
         xtb_out = os.path.join(self.work_folder, "XTB.out")
+        opt_input = os.path.join(self.work_folder, "opt.inp")
 
         if os.path.exists(xtb_opt):
             os.remove(xtb_opt)
 
+        # Create an xTB input file only when constraints are supplied.
+        if self.constraints:
+            with open(opt_input, "w") as f:
+                f.write("$constrain\n")
+                for constraint in self.constraints:
+                    f.write(f"   {constraint.strip()}\n")
+                f.write("$end\n")
+
         with open(xtb_out, "a") as f:
             input_path = os.path.join("..", self.structure_name)
+
+            # Keep the original xTB optimization command unchanged
+            # when no constraints are supplied.
+            command = (
+                f"{self.xtb_path} {input_path} "
+                f"--opt --cma --alpb water"
+            )
+
+            # Add the constraint input only when constraints exist.
+            if self.constraints:
+                command += " --input opt.inp"
+
             result = subprocess.run(
-                f"{self.xtb_path} {input_path} --opt --cma --alpb water",
+                command,
                 shell=True,
                 check=False,
                 cwd=self.work_folder,
@@ -251,5 +276,11 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         optimized_molecule = read(xtb_opt, format="xyz")
 
         os.remove(xtb_opt)
-        write(os.path.join(self.work_folder, "start_struct.xyz"), optimized_molecule, format="xyz") #The optimized structure is used as the starting structure for the next iteration
+
+        write(
+            os.path.join(self.work_folder, "start_struct.xyz"),
+            optimized_molecule,
+            format="xyz",
+        )
+
         return optimized_molecule
