@@ -24,7 +24,7 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         kpush: float = 0.1,
         alp: float = 0.5,
         xtb_path: str = "xtb",
-        constraints: list[str] | None = None,
+        constraints: str | None = None,
         **kwargs,
     ):
         """Generate conformers using XTB metadynamics.
@@ -49,10 +49,10 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         self.kpush = kpush
         self.alp = alp
         self.xtb_path = xtb_path
-        self.constraints = constraints or []
+        self.constraints = constraints
 
-        if not all(isinstance(constraint, str) for constraint in self.constraints):
-            raise TypeError("Each xTB constraint must be provided as a string.")
+        if self.constraints is not None and not isinstance(self.constraints, str):
+            raise TypeError("xTB constraints must be provided as a string.")
 
         self.log(
         f"""Generation Tool: XTB_Metadynamics
@@ -83,12 +83,7 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
 
         if self.constraints:
             constraint_lines = [
-                "$constrain\n",
-                *[
-                    f"   {constraint.strip()}\n"
-                    for constraint in self.constraints
-                ],
-                "$end\n",
+                self.constraints.rstrip() + "\n"
             ]
         
         with open(os.path.join(self.work_folder, "metadyn.inp"), "w") as f:
@@ -230,13 +225,10 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         if os.path.exists(xtb_opt):
             os.remove(xtb_opt)
 
-        # Create an xTB input file only when constraints are supplied.
+        # Write the supplied xTB constraint input exactly as provided.
         if self.constraints:
             with open(opt_input, "w") as f:
-                f.write("$constrain\n")
-                for constraint in self.constraints:
-                    f.write(f"   {constraint.strip()}\n")
-                f.write("$end\n")
+                f.write(self.constraints.rstrip() + "\n")
 
         with open(xtb_out, "a") as f:
             input_path = os.path.join("..", self.structure_name)

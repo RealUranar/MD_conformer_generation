@@ -119,8 +119,8 @@ def main(argv: list[str] | None = None) -> int:
 
      if args.program == "Metadynamics":
 
-          # Read optional xTB constraints.
-          constraints = []
+          # Read optional xTB constraint input exactly as provided.
+          constraints = None
 
           if args.constraints is not None:
                if not os.path.isfile(args.constraints):
@@ -129,13 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
 
                with open(args.constraints, "r") as f:
-                    constraints = [
-                         line.strip()
-                         for line in f
-                         if line.strip()
-                         and not line.strip().startswith("#")
-                         and not line.strip().startswith("$")
-                    ]
+                    constraints = f.read()
 
           # XTB metadynamics-based generator.
           confs = XTBMetadynamicsConfGenerator(
