@@ -160,9 +160,16 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
         if os.path.exists(xtb_trj):
             os.remove(xtb_trj)
 
+        charge_spin = ""
+        if self.charge != 0:
+            charge_spin = f" --chrg {self.charge}"
+        if self.multiplicity != 1:
+            #--uhf takes the number of unpaired electrons, which is multiplicity - 1
+            charge_spin += f" --uhf {self.multiplicity - 1}"
+
         with open(xtb_out, "a") as f:
             result = subprocess.run(
-                f"{self.xtb_path} --metadyn 1000 --md --cma --norestart --alpb water --input metadyn.inp start_struct.xyz",
+                f"{self.xtb_path} --metadyn 1000 --md --cma{charge_spin} --norestart --alpb water --input metadyn.inp start_struct.xyz",
                 shell=True,
                 check=False,
                 cwd=self.work_folder,
@@ -235,11 +242,14 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
 
             # Keep the original xTB optimization command unchanged
             # when no constraints are supplied.
-            command = (
-                f"{self.xtb_path} {input_path} "
-                f"--opt --cma --alpb water"
-            )
-
+            command = f"{self.xtb_path} {input_path} --opt --cma --alpb water"
+            
+            if self.charge != 0:
+                command = f" --chrg {self.charge}"
+            if self.multiplicity != 1:
+                #--uhf takes the number of unpaired electrons, which is multiplicity - 1
+                command += f" --uhf {self.multiplicity - 1}"
+            
             # Add the constraint input only when constraints exist.
             if self.constraints:
                 command += " --input opt.inp"

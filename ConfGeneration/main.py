@@ -104,6 +104,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
           default=None,
           help="xTB constraint file; constraints are applied to both the initial optimization and metadynamics",
      )
+     parser.add_argument(
+          "-c", "--charge", type=int, default=0, help="Charge of the molecule"
+     )
+     parser.add_argument(
+          "-m", "--multiplicity", type=int, default=1, help="Multiplicity of the molecule (2 * n_unpaired electrons + 1)"
+     )
+     
      return parser.parse_args(argv)
 
 
@@ -144,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
                debug=args.debug,
                restart=args.restart,
                constraints=constraints,
+               charge=args.charge,
+               multiplicity=args.multiplicity
           )
           confs.run()
           return 0
