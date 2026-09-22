@@ -245,7 +245,7 @@ class XTBMetadynamicsConfGenerator(ConfGenerator):
             command = f"{self.xtb_path} {input_path} --opt --cma --alpb water"
             
             if self.charge != 0:
-                command = f" --chrg {self.charge}"
+                command += f" --chrg {self.charge}"
             if self.multiplicity != 1:
                 #--uhf takes the number of unpaired electrons, which is multiplicity - 1
                 command += f" --uhf {self.multiplicity - 1}"
